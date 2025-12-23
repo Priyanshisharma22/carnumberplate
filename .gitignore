@@ -1,0 +1,14 @@
+atm/
+atm_py311/
+venv/
+
+cache/
+__pycache__/
+*.__pycache__
+
+all_frames/
+freedomown/
+frames/
+processed_videos/
+images/
+folder/

@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ambulance Shortest Path Simulator</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #020617;
+      color: #e5e7eb;
+      overflow: hidden;
+    }
+    .app {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .top-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 18px;
+      background: rgba(15, 23, 42, 0.9);
+      border-bottom: 1px solid rgba(148, 163, 184, 0.4);
+      backdrop-filter: blur(10px);
+      z-index: 10;
+    }
+    .title {
+      font-weight: 600;
+      font-size: 16px;
+      letter-spacing: 0.03em;
+      margin-right: 10px;
+      white-space: nowrap;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    select, button {
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      background: rgba(15, 23, 42, 0.8);
+      color: #e5e7eb;
+      padding: 6px 12px;
+      font-size: 14px;
+      outline: none;
+    }
+    select:focus, button:focus {
+      border-color: #38bdf8;
+    }
+    button {
+      font-weight: 600;
+      cursor: pointer;
+      border-width: 0;
+      background: linear-gradient(135deg, #22c55e, #14b8a6);
+      padding-inline: 16px;
+      box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+      transition: transform 0.08s ease, box-shadow 0.08s ease, opacity 0.1s;
+    }
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 24px rgba(16, 185, 129, 0.6);
+    }
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 5px 14px rgba(16, 185, 129, 0.5);
+      opacity: 0.95;
+    }
+    .spacer {
+      flex: 1;
+    }
+    .info {
+      font-size: 13px;
+      opacity: 0.9;
+      text-align: right;
+      max-width: 40%;
+      min-width: 180px;
+    }
+    .canvas-wrapper {
+      flex: 1;
+      position: relative;
+    }
+    canvas {
+      position: absolute;
+      inset: 0;
+      display: block;
+      background: radial-gradient(circle at top, #0f172a 0, #020617 50%, #020617 100%);
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="top-bar">
+    <div class="title">🚑 Ambulance Route Planner</div>
+    <div class="controls">
+      <label>
+        Source:
+        <select id="sourceSelect"></select>
+      </label>
+      <label>
+        Destination:
+        <select id="destSelect"></select>
+      </label>
+      <button id="startBtn">Start Ambulance</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="info" id="infoLabel">
+      Choose source & destination, then press <b>Start Ambulance</b>.
+    </div>
+  </div>
+  <div class="canvas-wrapper">
+    <canvas id="mapCanvas"></canvas>
+  </div>
+</div>
+
+<script>
+  const canvas = document.getElementById('mapCanvas');
+  const ctx = canvas.getContext('2d');
+  const sourceSelect = document.getElementById('sourceSelect');
+  const destSelect = document.getElementById('destSelect');
+  const startBtn = document.getElementById('startBtn');
+  const infoLabel = document.getElementById('infoLabel');
+  const topBar = document.querySelector('.top-bar');
+
+  // 5 intersections with relative coordinates (0-1 range)
+  const nodes = [
+    { id: 0, label: 'A', fx: 0.13, fy: 0.25 },
+    { id: 1, label: 'B', fx: 0.5,  fy: 0.18 },
+    { id: 2, label: 'C', fx: 0.87, fy: 0.25 },
+    { id: 3, label: 'D', fx: 0.25, fy: 0.75 },
+    { id: 4, label: 'E', fx: 0.75, fy: 0.75 }
+  ];
+
+  // 10 undirected roads (edges between intersections)
+  const edges = [
+    [0, 1],
+    [1, 2],
+    [0, 3],
+    [3, 4],
+    [4, 2],
+    [1, 4],
+    [1, 3],
+    [0, 4],
+    [2, 3],
+    [0, 2]
+  ];
+
+  const adjacency = Array.from({ length: nodes.length }, () => []);
+  edges.forEach(([a, b]) => {
+    adjacency[a].push(b);
+    adjacency[b].push(a);
+  });
+
+  let currentPath = null;        // array of node ids
+  let animationState = null;     // state object for ambulance animation
+  let lastTimestamp = null;
+
+  function resizeCanvas() {
+    const width = window.innerWidth;
+    const height = window.innerHeight - topBar.offsetHeight;
+    canvas.width = width;
+    canvas.height = height > 0 ? height : 300;
+    // stop animation on resize (simpler & safer)
+    animationState = null;
+    lastTimestamp = null;
+    draw();
+  }
+
+  function getNodePosition(nodeId) {
+    const node = nodes[nodeId];
+    return {
+      x: node.fx * canvas.width,
+      y: node.fy * canvas.height
+    };
+  }
+
+  function distanceBetween(aId, bId) {
+    const a = getNodePosition(aId);
+    const b = getNodePosition(bId);
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // Dijkstra for shortest path
+  function shortestPath(startId, endId) {
+    const n = nodes.length;
+    const dist = new Array(n).fill(Infinity);
+    const prev = new Array(n).fill(null);
+    const visited = new Array(n).fill(false);
+
+    dist[startId] = 0;
+
+    for (let i = 0; i < n; i++) {
+      let u = -1;
+      let best = Infinity;
+      for (let j = 0; j < n; j++) {
+        if (!visited[j] && dist[j] < best) {
+          best = dist[j];
+          u = j;
+        }
+      }
+      if (u === -1) break;
+      if (u === endId) break;
+
+      visited[u] = true;
+
+      for (const v of adjacency[u]) {
+        if (visited[v]) continue;
+        const w = distanceBetween(u, v);
+        const alt = dist[u] + w;
+        if (alt < dist[v]) {
+          dist[v] = alt;
+          prev[v] = u;
+        }
+      }
+    }
+
+    if (dist[endId] === Infinity) {
+      return { path: null, length: Infinity };
+    }
+
+    const path = [];
+    let cur = endId;
+    while (cur !== null) {
+      path.push(cur);
+      cur = prev[cur];
+    }
+    path.reverse();
+    return { path, length: dist[endId] };
+  }
+
+  function drawRoads() {
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+    ctx.lineCap = 'round';
+
+    edges.forEach(([aId, bId]) => {
+      const a = getNodePosition(aId);
+      const b = getNodePosition(bId);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    });
+  }
+
+  function drawPath(path) {
+    if (!path || path.length < 2) return;
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(34, 197, 94, 0.95)';
+    ctx.shadowColor = 'rgba(34,197,94,0.7)';
+    ctx.shadowBlur = 14;
+
+    ctx.beginPath();
+    const first = getNodePosition(path[0]);
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < path.length; i++) {
+      const p = getNodePosition(path[i]);
+      ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+
+    // reset shadow
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+  }
+
+  function drawNodes() {
+    nodes.forEach(node => {
+      const { x, y } = getNodePosition(node.id);
+
+      // outer glow
+      ctx.beginPath();
+      ctx.arc(x, y, 20, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.fill();
+
+      // main circle
+      ctx.beginPath();
+      ctx.arc(x, y, 14, 0, Math.PI * 2);
+      const gradient = ctx.createRadialGradient(x, y, 4, x, y, 14);
+      gradient.addColorStop(0, '#22c55e');
+      gradient.addColorStop(1, '#14b8a6');
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      // label
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 14px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(node.label, x, y);
+
+      // small text "Intersection A" etc.
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.9)';
+      ctx.font = '11px system-ui';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`Int. ${node.label}`, x, y + 16);
+    });
+  }
+
+  function drawAmbulance() {
+    if (!currentPath || currentPath.length === 0) return;
+
+    let pos;
+    if (animationState && animationState.positions) {
+      const s = animationState.positions[animationState.segmentIndex];
+      const e = animationState.positions[Math.min(animationState.segmentIndex + 1, animationState.positions.length - 1)];
+      const t = animationState.t;
+      pos = {
+        x: s.x + (e.x - s.x) * t,
+        y: s.y + (e.y - s.y) * t
+      };
+    } else {
+      // no animation → sit at destination
+      const lastId = currentPath[currentPath.length - 1];
+      pos = getNodePosition(lastId);
+    }
+
+    // Ambulance body
+    const w = 40;
+    const h = 24;
+    ctx.save();
+    ctx.translate(pos.x, pos.y);
+
+    ctx.fillStyle = '#f9fafb';
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(-w / 2, -h / 2, w, h, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    // Red stripe
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(-w / 2 + 4, -4, w - 8, 6);
+
+    // Cross
+    ctx.fillStyle = '#ef4444';
+    const cSize = 8;
+    ctx.fillRect(-cSize / 2, -cSize - 2, cSize, cSize * 2);
+    ctx.fillRect(-cSize, -cSize / 2 - 2, cSize * 2, cSize);
+
+    // Light on top
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(0, -h / 2, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawBackgroundGrid() {
+    const step = 60;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(30, 64, 175, 0.2)';
+    for (let x = 0; x < canvas.width; x += step) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += step) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBackgroundGrid();
+    drawRoads();
+    if (currentPath) drawPath(currentPath);
+    drawNodes();
+    drawAmbulance();
+  }
+
+  function startAnimation(path) {
+    const positions = path.map(id => getNodePosition(id));
+    animationState = {
+      positions,
+      segmentIndex: 0,
+      t: 0,
+      speed: 260 // pixels per second
+    };
+    lastTimestamp = null;
+    requestAnimationFrame(stepAnimation);
+  }
+
+  function stepAnimation(timestamp) {
+    if (!animationState) return;
+    if (!lastTimestamp) lastTimestamp = timestamp;
+    const dt = (timestamp - lastTimestamp) / 1000;
+    lastTimestamp = timestamp;
+
+    const state = animationState;
+    const positions = state.positions;
+
+    if (state.segmentIndex >= positions.length - 1) {
+      // finished
+      animationState = null;
+      lastTimestamp = null;
+      draw();
+      return;
+    }
+
+    const start = positions[state.segmentIndex];
+    const end = positions[state.segmentIndex + 1];
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const segLen = Math.sqrt(dx * dx + dy * dy) || 1;
+    const move = state.speed * dt;
+    const deltaT = move / segLen;
+
+    state.t += deltaT;
+    if (state.t >= 1) {
+      state.segmentIndex++;
+      state.t = 0;
+    }
+
+    draw();
+    if (animationState) {
+      requestAnimationFrame(stepAnimation);
+    }
+  }
+
+  function fillSelects() {
+    nodes.forEach(node => {
+      const opt1 = document.createElement('option');
+      opt1.value = node.id;
+      opt1.textContent = `${node.label} (Intersection ${node.label})`;
+      sourceSelect.appendChild(opt1);
+
+      const opt2 = document.createElement('option');
+      opt2.value = node.id;
+      opt2.textContent = `${node.label} (Intersection ${node.label})`;
+      destSelect.appendChild(opt2);
+    });
+    sourceSelect.value = '0';
+    destSelect.value = '4';
+  }
+
+  startBtn.addEventListener('click', () => {
+    const s = parseInt(sourceSelect.value, 10);
+    const d = parseInt(destSelect.value, 10);
+
+    if (s === d) {
+      infoLabel.innerHTML = 'Source and destination are the same. Choose different intersections.';
+      return;
+    }
+
+    const result = shortestPath(s, d);
+    if (!result.path) {
+      infoLabel.innerHTML = 'No path found between these intersections.';
+      currentPath = null;
+      animationState = null;
+      draw();
+      return;
+    }
+
+    currentPath = result.path;
+
+    const labelPath = result.path.map(id => nodes[id].label).join(' → ');
+    const distance = result.length.toFixed(1);
+
+    infoLabel.innerHTML =
+      `Shortest path: <b>${labelPath}</b> &nbsp;|&nbsp; Path length: <b>${distance} units</b>`;
+
+    startAnimation(currentPath);
+  });
+
+  window.addEventListener('resize', resizeCanvas);
+
+  fillSelects();
+  resizeCanvas();
+</script>
+</body>
+</html>

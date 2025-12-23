@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Car Number Lookup (CSV)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Arial; padding: 20px; max-width: 900px; margin: auto; }
+    input, button { padding: 8px; font-size: 16px; }
+    .row { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+    table { border-collapse: collapse; width:100%; margin-top:12px; }
+    th, td { border:1px solid #ddd; padding:8px; text-align:left; }
+    th { background:#f4f4f4; }
+    .hint { color:#555; font-size:14px }
+    .actions { margin-top: 8px }
+  </style>
+</head>
+<body>
+  <h1>Car Number Lookup — CSV</h1>
+  <p class="hint">Two ways to use this page:<br>
+    1) Run a simple local server from the folder that contains <code>plate_log.csv</code> (recommended) and open this page from the same server — the page will automatically load <code>/plate_log.csv</code>.<br>
+    2) Or open this file directly in the browser and click <strong>Choose CSV</strong> to upload <code>C:\carnumberplate-main\plate_log.csv</code> from disk.</p>
+
+  <div class="row">
+    <input id="searchInput" placeholder="Enter car number (e.g. MH12AB1234)" style="flex:1" />
+    <button id="searchBtn">Search</button>
+    <button id="clearBtn">Clear</button>
+  </div>
+
+  <div class="row">
+    <label><strong>CSV source:</strong></label>
+    <input type="file" id="fileInput" accept=".csv" />
+    <div class="actions">
+      <button id="tryFetchBtn">Try load from /plate_log.csv</button>
+      <button id="downloadFiltered" disabled>Download results</button>
+    </div>
+  </div>
+
+  <div id="status" class="hint"></div>
+  <div id="results"></div>
+
+  <script>
+    // Minimal robust CSV parser that handles quoted fields and newlines inside quotes.
+    function parseCSV(text) {
+      const rows = [];
+      let cur = '';
+      let row = [];
+      let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (ch === '"') {
+          if (inQuotes && text[i+1] === '"') { // escaped quote
+            cur += '"';
+            i++; // skip the escape
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (ch === ',' && !inQuotes) {
+          row.push(cur);
+          cur = '';
+        } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+          // handle CRLF \r\n and single newlines
+          // consume \r\n as a single newline
+          if (ch === '\r' && text[i+1] === '\n') { i++; }
+          row.push(cur);
+          rows.push(row);
+          row = [];
+          cur = '';
+        } else {
+          cur += ch;
+        }
+      }
+      // finish last cell
+      if (cur !== '' || inQuotes || row.length > 0) {
+        row.push(cur);
+        rows.push(row);
+      }
+      // convert to array of objects using first row as header
+      if (rows.length === 0) return [];
+      const header = rows[0].map(h => h.trim());
+      const data = [];
+      for (let r = 1; r < rows.length; r++) {
+        const obj = {};
+        const rowArr = rows[r];
+        for (let c = 0; c < header.length; c++) {
+          obj[header[c] || `col${c}`] = (rowArr[c] !== undefined) ? rowArr[c].trim() : '';
+        }
+        data.push(obj);
+      }
+      return data;
+    }
+
+    let csvData = null;
+
+    function showStatus(msg, isError=false) {
+      const s = document.getElementById('status');
+      s.textContent = msg;
+      s.style.color = isError ? 'crimson' : '#333';
+    }
+
+    function renderTable(rows) {
+      const container = document.getElementById('results');
+      container.innerHTML = '';
+      if (!rows || rows.length === 0) {
+        container.innerHTML = '<p class="hint">No results to show.</p>';
+        document.getElementById('downloadFiltered').disabled = true;
+        return;
+      }
+      const keys = Object.keys(rows[0]);
+      let html = '<table><thead><tr>' + keys.map(k => `<th>${escapeHtml(k)}</th>`).join('') + '</tr></thead><tbody>';
+      for (const r of rows) {
+        html += '<tr>' + keys.map(k => `<td>${escapeHtml(r[k])}</td>`).join('') + '</tr>'; 
+      }
+      html += '</tbody></table>';
+      container.innerHTML = html;
+      document.getElementById('downloadFiltered').disabled = false;
+    }
+
+    function escapeHtml(str) {
+      if (str == null) return '';
+      return String(str).replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[ch]||ch));
+    }
+
+    function searchPlate(term) {
+      if (!csvData) { showStatus('CSV not loaded. Upload or fetch the CSV first.', true); return; }
+      term = (term || '').trim().toLowerCase();
+      if (!term) { renderTable(csvData); showStatus('Showing all rows (empty search).'); return; }
+      // Search across all fields for substring match (case-insensitive)
+      const results = csvData.filter(row => {
+        return Object.values(row).some(v => (v || '').toLowerCase().includes(term));
+      });
+      if (results.length === 0) showStatus('No matches found for "' + term + '"', true); else showStatus(results.length + ' match(es) found for "' + term + '"');
+      renderTable(results);
+    }
+
+    document.getElementById('searchBtn').addEventListener('click', () => {
+      searchPlate(document.getElementById('searchInput').value);
+    });
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      document.getElementById('searchInput').value = '';
+      renderTable(csvData || []);
+      showStatus('Cleared search.');
+    });
+
+    document.getElementById('fileInput').addEventListener('change', (ev) => {
+      const f = ev.target.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          csvData = parseCSV(reader.result);
+          showStatus('CSV loaded from file (rows: ' + csvData.length + ').');
+          renderTable(csvData);
+        } catch (e) {
+          showStatus('Error parsing CSV: ' + e.message, true);
+        }
+      };
+      reader.onerror = () => showStatus('Could not read file', true);
+      reader.readAsText(f);
+    });
+
+    document.getElementById('tryFetchBtn').addEventListener('click', async () => {
+      // Attempt to fetch plate_log.csv from same origin
+      try {
+        showStatus('Fetching /plate_log.csv ...');
+        const res = await fetch('/plate_log.csv');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const txt = await res.text();
+        csvData = parseCSV(txt);
+        showStatus('Loaded /plate_log.csv (rows: ' + csvData.length + ').');
+        renderTable(csvData);
+      } catch (e) {
+        showStatus('Could not fetch /plate_log.csv from this origin. Error: ' + e.message, true);
+      }
+    });
+
+    // Allow pressing Enter in the search box
+    document.getElementById('searchInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('searchBtn').click(); });
+
+    // download filtered results
+    document.getElementById('downloadFiltered').addEventListener('click', () => {
+      const html = document.getElementById('results');
+      // rebuild CSV from currently shown table
+      const table = html.querySelector('table');
+      if (!table) return;
+      const rows = [];
+      for (const r of table.querySelectorAll('tr')) {
+        const cells = Array.from(r.querySelectorAll('th,td')).map(td => '"' + String(td.textContent).replace(/"/g,'""') + '"');
+        rows.push(cells.join(','));
+      }
+      const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'filtered_plate_results.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    // Handy: try auto-load if page was served from folder with plate_log.csv
+    (async function tryAutoLoad(){
+      try {
+        const res = await fetch('/plate_log.csv');
+        if (!res.ok) return;
+        const txt = await res.text();
+        csvData = parseCSV(txt);
+        showStatus('Auto-loaded /plate_log.csv (rows: ' + csvData.length + ').');
+        renderTable(csvData);
+      } catch (e) {
+        // ignore silently
+      }
+    })();
+
+  </script>
+</body>
+</html>

@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Traffic Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #1a2a6c);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 1200px;
+            padding: 20px;
+        }
+        h1 {
+            margin-bottom: 10px;
+            text-align: center;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            font-size: 2.5rem;
+        }
+        .subtitle {
+            margin-bottom: 20px;
+            text-align: center;
+            opacity: 0.9;
+            max-width: 800px;
+        }
+        .simulation-container {
+            position: relative;
+            width: 100%;
+            max-width: 1000px;
+            height: 600px;
+            background-color: #2c3e50;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            background-color: #34495e;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .control-group {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            min-width: 200px;
+        }
+        .control-group h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .stat-box {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 12px 20px;
+            border-radius: 8px;
+            min-width: 150px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #3498db;
+        }
+        .instructions {
+            margin-top: 20px;
+            text-align: center;
+            max-width: 800px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+        }
+        .key {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin: 0 3px;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .color-box {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+        .bike-color { background-color: #1e90ff; }
+        .car-color { background-color: #228b22; }
+        .bus-color { background-color: #800080; }
+        .road-color { background-color: #2c3e50; }
+        .intersection-color { background-color: #c0392b; }
+        .grid-color { background-color: rgba(255, 255, 255, 0.1); }
+        .tool-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            z-index: 100;
+        }
+        .tool-button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+            transition: background 0.3s;
+        }
+        .tool-button:hover {
+            background: #2980b9;
+        }
+        .tool-button.active {
+            background: #e74c3c;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+        .modal-content {
+            background: #2c3e50;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 300px;
+            text-align: center;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: #fff;
+        }
+        .input-group {
+            margin: 15px 0;
+            text-align: left;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background: #34495e;
+            color: white;
+        }
+        .snap-toggle {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .snap-toggle input {
+            width: auto;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚗 Advanced Traffic Simulation</h1>
+        <p class="subtitle">Interactive road building with snap-to-grid, automatic intersections, and realistic traffic flow</p>
+        <div class="simulation-container">
+            <canvas id="simulationCanvas" width="1000" height="600"></canvas>
+            <div class="tool-panel">
+                <button id="selectTool" class="tool-button active">Select</button>
+                <button id="roadTool" class="tool-button">Draw Road</button>
+                <button id="intersectionTool" class="tool-button">Add Intersection</button>
+                <button id="deleteTool" class="tool-button">Delete</button>
+                <button id="resetMap" class="tool-button">Reset Map</button>
+                <div class="snap-toggle">
+                    <input type="checkbox" id="snapToggle" checked>
+                    <label for="snapToggle">Snap to Grid</label>
+                </div>
+            </div>
+        </div>
+        <div class="controls">
+            <div class="control-group">
+                <h3>Simulation Controls</h3>
+                <button id="resetBtn">Reset Simulation</button>
+                <button id="addVehicleBtn">Add Random Vehicle</button>
+                <button id="fitViewBtn">Fit View</button>
+            </div>
+            <div class="control-group">
+                <h3>Traffic Light Settings</h3>
+                <label>Green Time: <input type="range" id="greenTimeSlider" min="5" max="30" value="15"></label>
+                <span id="greenTimeValue">15s</span>
+            </div>
+        </div>
+        <div class="stats">
+            <div class="stat-box">
+                <div>Vehicles</div>
+                <div class="stat-value" id="vehicleCount">0</div>
+            </div>
+            <div class="stat-box">
+                <div>Zoom Level</div>
+                <div class="stat-value" id="zoomValue">1.00x</div>
+            </div>
+            <div class="stat-box">
+                <div>Intersections</div>
+                <div class="stat-value" id="intersectionCount">0</div>
+            </div>
+            <div class="stat-box">
+                <div>Roads</div>
+                <div class="stat-value" id="roadCount">0</div>
+            </div>
+        </div>
+        <div class="legend">
+            <div class="legend-item">
+                <div class="color-box bike-color"></div>
+                <span>Bike</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-box car-color"></div>
+                <span>Car</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-box bus-color"></div>
+                <span>Bus</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-box road-color"></div>
+                <span>Road</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-box intersection-color"></div>
+                <span>Intersection</span>
+            </div>
+        </div>
+        <div class="instructions">
+            <p>Use <span class="key">ARROW KEYS</span> to pan, <span class="key">MOUSE WHEEL</span> to zoom, <span class="key">HOLD MOUSE WHEEL + DRAG</span> to pan, and <span class="key">SPACE</span> to pause/resume</p>
+            <p>Click <span class="key">DRAW ROAD</span> tool to create roads by clicking points, double-click to finish. Roads automatically create intersections at junctions.</p>
+        </div>
+    </div>
+    <!-- Modal for adding intersection -->
+    <div id="addIntersectionModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>Add Intersection</h3>
+            <div class="input-group">
+                <label>Green Time (seconds):</label>
+                <input type="number" id="intersectionGreenTime" min="5" max="30" value="15">
+            </div>
+            <button id="confirmAddIntersection">Add Intersection</button>
+        </div>
+    </div>
+    <!-- Modal for editing road -->
+    <div id="editRoadModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>Edit Road</h3>
+            <div class="input-group">
+                <label>Road Width (meters):</label>
+                <input type="number" id="roadWidth" min="3" max="20" value="6">
+            </div>
+            <button id="confirmEditRoad">Update Road</button>
+        </div>
+    </div>
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('simulationCanvas');
+        const ctx = canvas.getContext('2d');
+        const vehicleCountElement = document.getElementById('vehicleCount');
+        const zoomValueElement = document.getElementById('zoomValue');
+        const greenTimeSlider = document.getElementById('greenTimeSlider');
+        const greenTimeValue = document.getElementById('greenTimeValue');
+        const resetBtn = document.getElementById('resetBtn');
+        const addVehicleBtn = document.getElementById('addVehicleBtn');
+        const fitViewBtn = document.getElementById('fitViewBtn');
+        const resetMap = document.getElementById('resetMap');
+        const selectTool = document.getElementById('selectTool');
+        const roadTool = document.getElementById('roadTool');
+        const intersectionTool = document.getElementById('intersectionTool');
+        const deleteTool = document.getElementById('deleteTool');
+        const snapToggle = document.getElementById('snapToggle');
+        const addIntersectionModal = document.getElementById('addIntersectionModal');
+        const editRoadModal = document.getElementById('editRoadModal');
+        // Configuration - 10 pixels per meter (1000 pixels per km)
+        const PX_PER_METER = 10;
+        const PX_PER_KM = PX_PER_METER * 1000;
+        const WIDTH = canvas.width;
+        const HEIGHT = canvas.height;
+        const ROAD_WIDTH_DEFAULT = 6; // meters
+        const INTER_SIZE = 120; // pixels
+        const INTER_HALF = INTER_SIZE / 2;
+        const SAFE_GAP = 10 * PX_PER_METER; // 10 meters
+        const STOP_BUFFER = 10 * PX_PER_METER; // 10 meters
+        const LANE_OFFSET = ROAD_WIDTH_DEFAULT * PX_PER_METER / 4;
+        const FPS = 60;
+        const SPAWN_INTERVAL = 1.5;
+        const GRID_SIZE = 5; // 5 meters
+        // Vehicle sizes and speeds (in meters)
+        const S_BIKE = { width: 0.6, height: 2.0 }; // 0.6m x 2m
+        const S_CAR = { width: 1.8, height: 4.5 }; // 1.8m x 4.5m
+        const S_BUS = { width: 2.5, height: 12.0 }; // 2.5m x 12m
+        const V_BIKE = 15; // m/s (54 km/h)
+        const V_CAR = 20; // m/s (72 km/h)
+        const V_BUS = 18; // m/s (65 km/h)
+        const CLR_BIKE = '#1e90ff';
+        const CLR_CAR = '#228b22';
+        const CLR_BUS = '#800080';
+        const CLR_BG = '#34495e';
+        const CLR_ROAD = '#2c3e50';
+        const CLR_INTER = '#c0392b';
+        const CLR_TEXT = '#ffffff';
+        const CLR_GRID = 'rgba(255, 255, 255, 0.1)';
+        const CLR_SELECTED = '#3498db';
+        const CLR_HOVER = '#e74c3c';
+        // Global state
+        let zoom = 0.1;
+        let offset = { x: 0, y: 0 };
+        let spawnTimer = 0;
+        let paused = false;
+        let isPanning = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let currentTool = 'select';
+        let roadPoints = [];
+        let selectedObject = null;
+        let hoverObject = null;
+        let snapToGrid = true;
+        // Data structures
+        let roads = [];
+        let intersections = [];
+        let vehicles = [];
+        // Initialize with some default roads
+        function initializeDefaultMap() {
+            // Create some default roads
+            // Horizontal road
+            roads.push({
+                points: [
+                    { x: 2000 * PX_PER_METER, y: 3000 * PX_PER_METER },
+                    { x: 8000 * PX_PER_METER, y: 3000 * PX_PER_METER }
+                ],
+                width: ROAD_WIDTH_DEFAULT,
+                id: Date.now()
+            });
+            // Vertical road
+            roads.push({
+                points: [
+                    { x: 5000 * PX_PER_METER, y: 1000 * PX_PER_METER },
+                    { x: 5000 * PX_PER_METER, y: 9000 * PX_PER_METER }
+                ],
+                width: ROAD_WIDTH_DEFAULT,
+                id: Date.now() + 1
+            });
+            // Diagonal road
+            roads.push({
+                points: [
+                    { x: 2000 * PX_PER_METER, y: 7000 * PX_PER_METER },
+                    { x: 8000 * PX_PER_METER, y: 7000 * PX_PER_METER }
+                ],
+                width: ROAD_WIDTH_DEFAULT,
+                id: Date.now() + 2
+            });
+            // Create intersections at road junctions
+            createIntersectionsFromRoads();
+        }
+        // Create intersections at road junctions
+        function createIntersectionsFromRoads() {
+            intersections = [];
+            // Check all road pairs for intersections
+            for (let i = 0; i < roads.length; i++) {
+                for (let j = i + 1; j < roads.length; j++) {
+                    const road1 = roads[i];
+                    const road2 = roads[j];
+                    // Check if roads intersect
+                    for (let k = 0; k < road1.points.length - 1; k++) {
+                        for (let l = 0; l < road2.points.length - 1; l++) {
+                            const p1 = road1.points[k];
+                            const p2 = road1.points[k + 1];
+                            const p3 = road2.points[l];
+                            const p4 = road2.points[l + 1];
+                            // Check if line segments intersect
+                            const intersection = lineSegmentIntersection(p1, p2, p3, p4);
+                            if (intersection) {
+                                // Check if this intersection already exists
+                                const existingIntersection = intersections.find(inter => 
+                                    Math.abs(inter.x - intersection.x) < 1 && 
+                                    Math.abs(inter.y - intersection.y) < 1
+                                );
+                                if (!existingIntersection) {
+                                    intersections.push({
+                                        x: intersection.x,
+                                        y: intersection.y,
+                                        id: Date.now() + intersections.length,
+                                        connectedRoads: [road1.id, road2.id],
+                                        phase: 0,
+                                        timer: 0,
+                                        greenTime: 15.0,
+                                        directions: []
+                                    });
+                                } else {
+                                    // Add roads to existing intersection
+                                    if (!existingIntersection.connectedRoads.includes(road1.id)) {
+                                        existingIntersection.connectedRoads.push(road1.id);
+                                    }
+                                    if (!existingIntersection.connectedRoads.includes(road2.id)) {
+                                        existingIntersection.connectedRoads.push(road2.id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Also check for T-junctions (where one road ends at another)
+            for (let i = 0; i < roads.length; i++) {
+                const road1 = roads[i];
+                for (let j = 0; j < roads.length; j++) {
+                    if (i === j) continue;
+                    const road2 = roads[j];
+                    // Check if any endpoint of road1 intersects with road2
+                    for (let k = 0; k < road1.points.length; k++) {
+                        const point = road1.points[k];
+                        for (let l = 0; l < road2.points.length - 1; l++) {
+                            const p1 = road2.points[l];
+                            const p2 = road2.points[l + 1];
+                            // Check if point is on the line segment
+                            if (pointOnLineSegment(point, p1, p2)) {
+                                // Check if this intersection already exists
+                                const existingIntersection = intersections.find(inter => 
+                                    Math.abs(inter.x - point.x) < 1 && 
+                                    Math.abs(inter.y - point.y) < 1
+                                );
+                                if (!existingIntersection) {
+                                    intersections.push({
+                                        x: point.x,
+                                        y: point.y,
+                                        id: Date.now() + intersections.length,
+                                        connectedRoads: [road1.id, road2.id],
+                                        phase: 0,
+                                        timer: 0,
+                                        greenTime: 15.0,
+                                        directions: []
+                                    });
+                                } else {
+                                    // Add roads to existing intersection
+                                    if (!existingIntersection.connectedRoads.includes(road1.id)) {
+                                        existingIntersection.connectedRoads.push(road1.id);
+                                    }
+                                    if (!existingIntersection.connectedRoads.includes(road2.id)) {
+                                        existingIntersection.connectedRoads.push(road2.id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Update directions for each intersection
+            updateIntersectionDirections();
+        }
+        // Update directions for each intersection
+        function updateIntersectionDirections() {
+            for (const inter of intersections) {
+                inter.directions = [];
+                // For each connected road, determine the direction
+                for (const roadId of inter.connectedRoads) {
+                    const road = roads.find(r => r.id === roadId);
+                    if (!road) continue;
+                    // Find which segment of the road contains the intersection
+                    for (let i = 0; i < road.points.length - 1; i++) {
+                        const p1 = road.points[i];
+                        const p2 = road.points[i + 1];
+                        if (Math.abs(p1.x - inter.x) < 1 && Math.abs(p1.y - inter.y) < 1) {
+                            // Intersection is at start of segment
+                            const dir = getDirectionFromPoints(p1, p2);
+                            if (!inter.directions.includes(dir)) {
+                                inter.directions.push(dir);
+                            }
+                        } else if (Math.abs(p2.x - inter.x) < 1 && Math.abs(p2.y - inter.y) < 1) {
+                            // Intersection is at end of segment
+                            const dir = getDirectionFromPoints(p2, p1);
+                            if (!inter.directions.includes(dir)) {
+                                inter.directions.push(dir);
+                            }
+                        } else if (pointOnLineSegment({x: inter.x, y: inter.y}, p1, p2)) {
+                            // Intersection is on the segment
+                            const dir1 = getDirectionFromPoints(inter, p1);
+                            const dir2 = getDirectionFromPoints(inter, p2);
+                            if (!inter.directions.includes(dir1)) {
+                                inter.directions.push(dir1);
+                            }
+                            if (!inter.directions.includes(dir2)) {
+                                inter.directions.push(dir2);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Get direction from point A to point B
+        function getDirectionFromPoints(a, b) {
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            // Calculate angle in degrees
+            let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+            if (angle < 0) angle += 360;
+            // Determine direction based on angle
+            if (angle >= 337.5 || angle < 22.5) return 'E'; // East
+            if (angle >= 22.5 && angle < 67.5) return 'NE'; // Northeast
+            if (angle >= 67.5 && angle < 112.5) return 'N'; // North
+            if (angle >= 112.5 && angle < 157.5) return 'NW'; // Northwest
+            if (angle >= 157.5 && angle < 202.5) return 'W'; // West
+            if (angle >= 202.5 && angle < 247.5) return 'SW'; // Southwest
+            if (angle >= 247.5 && angle < 292.5) return 'S'; // South
+            if (angle >= 292.5 && angle < 337.5) return 'SE'; // Southeast
+            return 'E';
+        }
+        // Line segment intersection helper
+        function lineSegmentIntersection(p1, p2, p3, p4) {
+            // Line segment intersection algorithm
+            const denom = (p4.y - p3.y) * (p2.x - p1.x) - (p4.x - p3.x) * (p2.y - p1.y);
+            if (denom === 0) return null; // Lines are parallel
+            const ua = ((p4.x - p3.x) * (p1.y - p3.y) - (p4.y - p3.y) * (p1.x - p3.x)) / denom;
+            const ub = ((p2.x - p1.x) * (p1.y - p3.y) - (p2.y - p1.y) * (p1.x - p3.x)) / denom;
+            if (ua < 0 || ua > 1 || ub < 0 || ub > 1) return null; // No intersection within segments
+            const x = p1.x + ua * (p2.x - p1.x);
+            const y = p1.y + ua * (p2.y - p1.y);
+            return { x, y };
+        }
+        // Check if point is on line segment
+        function pointOnLineSegment(point, p1, p2) {
+            // Check if point is on the line segment
+            const distance = distanceBetweenPoints(point, p1) + distanceBetweenPoints(point, p2);
+            const segmentLength = distanceBetweenPoints(p1, p2);
+            return Math.abs(distance - segmentLength) < 1;
+        }
+        // Distance between two points
+        function distanceBetweenPoints(p1, p2) {
+            return Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+        }
+        // Snap point to grid
+        function snapToGridPoint(point) {
+            if (!snapToGrid) return point;
+            const snappedX = Math.round(point.x / (GRID_SIZE * PX_PER_METER)) * (GRID_SIZE * PX_PER_METER);
+            const snappedY = Math.round(point.y / (GRID_SIZE * PX_PER_METER)) * (GRID_SIZE * PX_PER_METER);
+            return { x: snappedX, y: snappedY };
+        }
+        // Vehicle class
+        class Vehicle {
+            constructor(kind, dir, pos, speed, size, color, stopCoord, laneFix, interIndex) {
+                this.kind = kind;
+                this.dir = dir;
+                this.pos = pos;
+                this.speed = speed * PX_PER_METER; // Convert m/s to px/s
+                this.size = {
+                    width: size.width * PX_PER_METER,
+                    height: size.height * PX_PER_METER
+                };
+                this.color = color;
+                this.stopCoord = stopCoord;
+                this.laneFix = laneFix;
+                this.interIndex = interIndex;
+                this.halfLen = this.dir === 'E' || this.dir === 'W' ? this.size.width / 2 : this.size.height / 2;
+            }
+            orientedSize() {
+                if (this.dir === 'N' || this.dir === 'S') return this.size;
+                return { width: this.size.height, height: this.size.width };
+            }
+            bbox() {
+                const size = this.orientedSize();
+                return {
+                    x: this.pos.x - size.width / 2,
+                    y: this.pos.y - size.height / 2,
+                    width: size.width,
+                    height: size.height
+                };
+            }
+            forward() {
+                switch (this.dir) {
+                    case 'E': return { x: 1, y: 0 };
+                    case 'W': return { x: -1, y: 0 };
+                    case 'S': return { x: 0, y: 1 };
+                    case 'N': return { x: 0, y: -1 };
+                    case 'NE': return { x: 0.707, y: -0.707 };
+                    case 'NW': return { x: -0.707, y: -0.707 };
+                    case 'SE': return { x: 0.707, y: 0.707 };
+                    case 'SW': return { x: -0.707, y: 0.707 };
+                }
+            }
+            insideIntersection(inter) {
+                const rect = {
+                    x: inter.x - INTER_HALF,
+                    y: inter.y - INTER_HALF,
+                    width: INTER_SIZE,
+                    height: INTER_SIZE
+                };
+                const bbox = this.bbox();
+                return bbox.x < rect.x + rect.width &&
+                       bbox.x + bbox.width > rect.x &&
+                       bbox.y < rect.y + rect.height &&
+                       bbox.y + bbox.height > rect.y;
+            }
+            update(dt, sameLane, greenDir) {
+                const f = this.forward();
+                const v = {
+                    x: f.x * this.speed * dt,
+                    y: f.y * this.speed * dt
+                };
+                if (this.dir === 'E' || this.dir === 'W') {
+                    this.pos.y = this.laneFix;
+                } else if (this.dir === 'N' || this.dir === 'S') {
+                    this.pos.x = this.laneFix;
+                } else {
+                    // For diagonal directions, we need to adjust both x and y
+                    // This is a simplified approach - in a real implementation, you'd need more sophisticated logic
+                    this.pos.x += v.x;
+                    this.pos.y += v.y;
+                }
+                const nextPos = {
+                    x: this.pos.x + v.x,
+                    y: this.pos.y + v.y
+                };
+                const stop = this.stopCoord;
+                const inter = intersections[this.interIndex];
+                const allowed = (this.dir === greenDir) || this.insideIntersection(inter);
+                if (!allowed) {
+                    if (this.dir === 'E' && (nextPos.x + this.halfLen) >= stop) {
+                        nextPos.x = stop - this.halfLen - 1;
+                    } else if (this.dir === 'W' && (nextPos.x - this.halfLen) <= stop) {
+                        nextPos.x = stop + this.halfLen + 1;
+                    } else if (this.dir === 'S' && (nextPos.y + this.halfLen) >= stop) {
+                        nextPos.y = stop - this.halfLen - 1;
+                    } else if (this.dir === 'N' && (nextPos.y - this.halfLen) <= stop) {
+                        nextPos.y = stop + this.halfLen + 1;
+                    }
+                }
+                // Maintain safe gap
+                const leads = sameLane.filter(u => u !== this);
+                if (leads.length > 0) {
+                    if (this.dir === 'E') {
+                        const ahead = leads.filter(u => u.pos.x > this.pos.x);
+                        if (ahead.length > 0) {
+                            const lead = ahead.reduce((min, u) => u.pos.x < min.pos.x ? u : min);
+                            nextPos.x = Math.min(nextPos.x, lead.pos.x - lead.halfLen - SAFE_GAP - this.halfLen);
+                        }
+                    } else if (this.dir === 'W') {
+                        const ahead = leads.filter(u => u.pos.x < this.pos.x);
+                        if (ahead.length > 0) {
+                            const lead = ahead.reduce((max, u) => u.pos.x > max.pos.x ? u : max);
+                            nextPos.x = Math.max(nextPos.x, lead.pos.x + lead.halfLen + SAFE_GAP + this.halfLen);
+                        }
+                    } else if (this.dir === 'S') {
+                        const ahead = leads.filter(u => u.pos.y > this.pos.y);
+                        if (ahead.length > 0) {
+                            const lead = ahead.reduce((min, u) => u.pos.y < min.pos.y ? u : min);
+                            nextPos.y = Math.min(nextPos.y, lead.pos.y - lead.halfLen - SAFE_GAP - this.halfLen);
+                        }
+                    } else if (this.dir === 'N') {
+                        const ahead = leads.filter(u => u.pos.y < this.pos.y);
+                        if (ahead.length > 0) {
+                            const lead = ahead.reduce((max, u) => u.pos.y > max.pos.y ? u : max);
+                            nextPos.y = Math.max(nextPos.y, lead.pos.y + lead.halfLen + SAFE_GAP + this.halfLen);
+                        }
+                    }
+                }
+                this.pos = nextPos;
+            }
+            draw() {
+                const bbox = this.bbox();
+                const scaled = {
+                    x: (bbox.x - offset.x) * zoom,
+                    y: (bbox.y - offset.y) * zoom,
+                    width: bbox.width * zoom,
+                    height: bbox.height * zoom
+                };
+                ctx.fillStyle = this.color;
+                ctx.fillRect(scaled.x, scaled.y, scaled.width, scaled.height);
+                // Draw vehicle details based on type
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                if (this.kind === 'bike') {
+                    // Draw bike details
+                    ctx.beginPath();
+                    ctx.arc(scaled.x + scaled.width/2, scaled.y + scaled.height/2, scaled.width/3, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (this.kind === 'car') {
+                    // Draw car details
+                    ctx.fillRect(scaled.x + scaled.width/4, scaled.y + scaled.height/3, scaled.width/2, scaled.height/3);
+                } else if (this.kind === 'bus') {
+                    // Draw bus details
+                    ctx.fillRect(scaled.x + scaled.width/6, scaled.y + scaled.height/4, scaled.width*2/3, scaled.height/2);
+                }
+            }
+        }
+        // Spawning functions
+        function vehSpec(k) {
+            switch (k) {
+                case 'bike': return { size: S_BIKE, speed: V_BIKE, color: CLR_BIKE };
+                case 'car': return { size: S_CAR, speed: V_CAR, color: CLR_CAR };
+                case 'bus': return { size: S_BUS, speed: V_BUS, color: CLR_BUS };
+            }
+        }
+        function laneYEast(y) { return y - LANE_OFFSET; }
+        function laneYWest(y) { return y + LANE_OFFSET; }
+        function laneXSouth(x) { return x - LANE_OFFSET; }
+        function laneXNorth(x) { return x + LANE_OFFSET; }
+        function stopXForEast(ix) { return ix - INTER_HALF - STOP_BUFFER; }
+        function stopXForWest(ix) { return ix + INTER_HALF + STOP_BUFFER; }
+        function stopYForSouth(iy) { return iy - INTER_HALF - STOP_BUFFER; }
+        function stopYForNorth(iy) { return iy + INTER_HALF + STOP_BUFFER; }
+        function spawnVehicle(k, dir, interIndex) {
+            const spec = vehSpec(k);
+            const { x: ix, y: iy } = intersections[interIndex] || { x: 0, y: 0 };
+            let pos, stop, laneFix;
+            if (dir === 'E') {
+                const y = laneYEast(iy);
+                pos = { x: -Math.random() * 150 - 50, y: y };
+                stop = stopXForEast(ix);
+                laneFix = y;
+            } else if (dir === 'W') {
+                const y = laneYWest(iy);
+                pos = { x: 10000 * PX_PER_METER + Math.random() * 150 + 50, y: y }; // 10km + buffer
+                stop = stopXForWest(ix);
+                laneFix = y;
+            } else if (dir === 'S') {
+                const x = laneXSouth(ix);
+                pos = { x: x, y: -Math.random() * 150 - 50 };
+                stop = stopYForSouth(iy);
+                laneFix = x;
+            } else if (dir === 'N') {
+                const x = laneXNorth(ix);
+                pos = { x: x, y: 10000 * PX_PER_METER + Math.random() * 150 + 50 }; // 10km + buffer
+                stop = stopYForNorth(iy);
+                laneFix = x;
+            } else {
+                // For diagonal directions
+                pos = { x: ix, y: iy };
+                stop = ix; // Simplified
+                laneFix = iy;
+            }
+            return new Vehicle(k, dir, pos, spec.speed, spec.size, spec.color, stop, laneFix, interIndex

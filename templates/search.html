@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Vehicle Record</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            width: 900px;  /* 🔥 Increased width */
+            text-align: center;
+        }
+        h2 {
+            color: #007bff;
+        }
+        input {
+            width: 70%;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            margin-top: 10px;
+            font-size: 16px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin-left: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🔍 Vehicle Search</h2>
+    <input type="text" id="plateInput" placeholder="Enter plate number">
+    <button onclick="searchPlate()">Search</button>
+    <div id="resultContainer"></div>
+</div>
+
+<script>
+async function searchPlate() {
+    const plate = document.getElementById('plateInput').value.trim();
+    const resultDiv = document.getElementById('resultContainer');
+
+    if (!plate) {
+        resultDiv.innerHTML = "<p class='error'>⚠️ Please enter a plate number.</p>";
+        return;
+    }
+
+    resultDiv.innerHTML = "<p>🔎 Searching...</p>";
+
+    try {
+        const response = await fetch(`/search_plate?plate=${encodeURIComponent(plate)}`);
+        const data = await response.json();
+
+        if (data.status === "found") {
+            let html = `<p><strong>✅ ${data.count} record(s) found for ${plate}</strong></p>`;
+            html += `
+                <table>
+                    <tr>
+                        <th>Plate Number</th>
+                        <th>Entry Time</th>
+                        <th>Exit Time</th>
+                        <th>Date</th>
+                        <th>Location</th>
+                    </tr>
+            `;
+            data.records.forEach(rec => {
+                html += `
+                    <tr>
+                        <td>${rec.plate_number}</td>
+                        <td>${rec.entry_time}</td>
+                        <td>${rec.exit_time}</td>
+                        <td>${rec.date}</td>
+                        <td>${rec.location}</td>
+                    </tr>
+                `;
+            });
+            html += `</table>`;
+            resultDiv.innerHTML = html;
+
+        } else if (data.status === "not_found") {
+            resultDiv.innerHTML = `<p class="error">❌ No record found for plate: ${plate}</p>`;
+        } else {
+            resultDiv.innerHTML = `<p class="error">⚠️ ${data.message}</p>`;
+        }
+
+    } catch (error) {
+        console.error("Error:", error);
+        resultDiv.innerHTML = "<p class='error'>⚠️ Error fetching data. Please try again.</p>";
+    }
+}
+</script>
+
+</body>
+</html>
